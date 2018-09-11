@@ -24,7 +24,7 @@ def renameLabel():
 
 
 def xmlStatisticLabelNum():
-    xmldir = '/home/wurui/Desktop/AudiValue-v2/VOC2007/Annotations'
+    xmldir = '/media/cuizhou/6087-6554/cuizhou/xml'
 
     dictLabelNum = {}
     for xmlfile in os.listdir(xmldir):
@@ -46,8 +46,8 @@ def xmlStatisticLabelNum():
     rareKey = []
     sorted(dictLabelNum.items(), key=lambda x:x[1], reverse=True)
     for key,item in dictLabelNum.items():
-        f.writelines(str(key)+'\n')
-        # f.writelines(str(key)+','+str(item)+'\n')
+        # f.writelines(str(key)+'\n')
+        f.writelines(str(key)+','+str(item)+'\n')
         if(item<8):
             rareKey.append(key)
     f.close()
@@ -55,9 +55,9 @@ def xmlStatisticLabelNum():
 
 
 def selectRareLabelXml():
-    rareLabel = ['H']
-    xmldir = '/home/wurui/Desktop/linconValue-v4+/VOC2007/Annotations'
-    savedir = '/home/wurui/Desktop/linconValue/xml'
+    rareLabel = ['bread']
+    xmldir = '/media/cuizhou/6087-6554/cuizhou/xml'
+    savedir = '/media/cuizhou/6087-6554/cuizhou/xml-bread'
 
     for xmlfile in os.listdir(xmldir):
         tree = ET.parse(os.path.join(xmldir, xmlfile))
@@ -69,7 +69,7 @@ def selectRareLabelXml():
             label = name_node.text
             if rareLabel.__contains__(label):
                 print(xmlfile)
-                # shutil.copy(os.path.join(xmldir, xmlfile), os.path.join(savedir, xmlfile))
+                shutil.move(os.path.join(xmldir, xmlfile), os.path.join(savedir, xmlfile))
                 break
 
 

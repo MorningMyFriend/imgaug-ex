@@ -221,11 +221,55 @@ def trainval():
                 f.writelines(img+' ' +img+LABEL_EX+'\n')
     f.close()
 
+def resizeImgToCnnInput(rootdir):
+    for img in os.listdir(rootdir):
+        try:
+            image = cv2.imread(os.path.join(rootdir, img))
+            bkg = np.zeros((700,700,3), dtype=np.uint8)
+            bkg[110:590, 30:670] = image
+            cv2.imwrite(os.path.join(rootdir, img), bkg)
+        except:
+            continue
+
+def drawDetectResult(rootdir):
+    image = cv2.imread('/home/cuizhou/Desktop/test/401.jpg')
+    ratio_w = image.shape[1] / 300.0
+    ratio_h = image.shape[0] / 300.0
+    for fil in os.listdir(rootdir):
+        if fil[-6:] == '.score':
+            f = open(os.path.join(rootdir, fil), 'r')
+            while True:
+                try:
+                    line = f.readline()
+                    line = line.strip('\n')
+                    [x, y, w, h, cls, ang, score] = line.split(' ')
+                    x = (float)(x)
+                    y = (float)(y)
+                    w = (float)(w) # *ratio_w
+                    h = (float)(h) # *ratio_h
+                    ang = (float)(ang)
+                    score = (float)(score)
+
+                    print('x:{} y:{} w:{} h:{} ang:{} score:{}'.format(x, y, w, h, ang, score))
+
+                    # 画 rbox
+                    if(score>0.9):
+                        params = [x, y, w, h, ang]
+                        rbox = RBOX(params)
+                        rbox.Draw(image)
+                except:
+                    break
+            cv2.imshow('result', image)
+            cv2.waitKey(0)
+
+
 
 if __name__ == '__main__':
     rootdir = '/home/cuizhou/Desktop/rbox-bread'#'/home/cuizhou/Repositories/DRBox-master/data/Airplane/train_data'
     # ReadRboxFile('/home/cuizhou/Repositories/DRBox-master/data/Airplane/train_data')
     # check_display(rootdir)
     # augment()
-    trainval()
+    # trainval()
+    # resizeImgToCnnInput('/home/cuizhou/Desktop/test')
+    drawDetectResult('/home/cuizhou/Repositories/DRBox-master/examples/rbox/deploy/Airplane')
 
