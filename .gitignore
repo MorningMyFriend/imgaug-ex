@@ -1,0 +1,4 @@
+demo/VOC
+demo/img/*
+demo/pascal/*
+*.pyc

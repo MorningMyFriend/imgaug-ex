@@ -35,26 +35,35 @@ xml_save_dir = os.path.join(this_dir, 'pascal')
 
 XML_EXT = '.xml'
 IMG_EXT = ['.jpg', '.jpeg', '.png', '.JPG', '.PNG', '.JPEG']
+NUM_CHANGE = 4
 
 # if add perspective augment
-AUG_PERSPECTIVE = True
+AUG_PERSPECTIVE = False
 
 # normal augment
 seq = iaa.Sequential([
+    # iaa.Invert(p=1,per_channel=1),
+    # iaa.Superpixels(n_segments=20, p_replace=0.025),
+    # iaa.AdditiveGaussianNoise(scale=0.15*255),
+    # iaa.Sharpen(alpha=1, lightness=0.5),
+    # iaa.Add(value=(-35, 35), per_channel=1),
+    # iaa.Sharpen(lightness=0.7),
+    # iaa.Emboss(alpha=1, strength=1.5),
     # iaa.Crop(px=(0, 16)),  # crop images from each side by 0 to 16px (randomly chosen)
     # iaa.Fliplr(0.5),  # horizontally flip 50% of the images
     # iaa.Flipud(0.5),
-    # iaa.Affine(rotate=(90)),
+    iaa.Affine(rotate=(-6,6)),
     # iaa.Affine(#scale={"x": (0.5, 2.0), "y": (0.5, 2.0)},
     # scale images to 80-120% of their size, individually per axis
     # translate_px={"x": (-16, 16), "y": (-16, 16)},
-    iaa.Affine(scale=(0.9, 1.05)),
-    # iaa.AdditiveGaussianNoise(scale = 0.1*100),
-    iaa.Affine(rotate=(-3, 3), mode='edge'),
-    iaa.Crop(px=(0, 100)),
-    # iaa.Affine(shear = 5, mode = 'edge'),
-    #     shear=(-30, 30)),
-    iaa.Multiply((0.7, 1.3)),  # change brightness of images (50-150% of original value)
+    iaa.Affine(scale=(0.7, 1.05)),
+    iaa.AdditiveGaussianNoise(scale = 0.1*100),
+    # iaa.GaussianBlur(sigma=(0.1,0.25)),
+    # iaa.Affine(rotate=(-3, 3), mode='edge'),
+    # iaa.Crop(px=(0, 100)),
+    # iaa.Affine(shear = (-10, 10), mode = 'edge'),
+    # shear=(-30, 30)),
+    iaa.Multiply((0.6, 1.3)),  # change brightness of images (50-150% of original value)
     # iaa.ContrastNormalization((0.8, 1.5))
 ])
 
@@ -168,6 +177,56 @@ class PascalVocReader:
             ymin = 1
         return (int(xmin), int(ymin), int(xmax), int(ymax))
 
+    def changeRotateLabelForIdcard(self, targetFile=None, newlabel=None, imgH=0, imgW=0):
+        if not newlabel:
+            return
+
+        # rotate image by 90
+        pascal_voc_tree = copy.deepcopy(self.root)
+        num = 0
+        for object_iter in pascal_voc_tree.findall('object'):
+            bnd_box = self.convertPolygon2BndBox(self.polygons[num])
+            # bndbox = SubElement(object_iter, 'bndbox')
+            bndbox = object_iter.find("bndbox")
+            xmin = bndbox.find('xmin')
+            xmin.text = str(bnd_box[0])
+            ymin = bndbox.find('ymin')
+            ymin.text = str(bnd_box[1])
+            xmax = bndbox.find('xmax')
+            xmax.text = str(bnd_box[2])
+            ymax = bndbox.find('ymax')
+            ymax.text = str(bnd_box[3])
+
+            if newlabel == '90':
+                xmin.text, ymin.text = str(imgH - int(ymin.text)), xmin.text
+                xmax.text, ymax.text = str(imgH - int(ymax.text)), xmax.text
+            elif newlabel == '180':
+                xmin.text, ymin.text = str(imgW - int(xmin.text)), str(imgH - int(ymin.text))
+                xmax.text, ymax.text = str(imgW - int(xmax.text)), str(imgH - int(ymax.text))
+            elif newlabel == '270':
+                xmin.text, ymin.text = ymin.text, str(imgW - int(xmin.text))
+                xmax.text, ymax.text = ymax.text, str(imgW - int(xmax.text))
+
+            if xmin > xmax:
+                xmin, xmax = xmax, xmin
+            if ymin > ymax:
+                ymin, ymax = ymax, ymin
+
+            num = num + 1
+
+            # label
+            name_obj = object_iter.find("name")
+            name_obj.text = newlabel
+
+        if targetFile is None:
+            out_file = codecs.open(
+                self.filename + XML_EXT, 'w', encoding='utf-8')
+        else:
+            out_file = codecs.open(targetFile, 'w', encoding='utf-8')
+        prettifyResult = self.prettify(pascal_voc_tree)
+        out_file.write(prettifyResult.decode('utf8'))
+        out_file.close()
+
     def savePascalVocXML(self, targetFile=None):
         pascal_voc_tree = copy.deepcopy(self.root)
         num = 0
@@ -204,7 +263,7 @@ def aug_by_ia(xmlName, image_exname, image, polygons, reader):
     # # draw on image
     # image_keypoints = keypoints[0].draw_on_image(image, size=5)
 
-    for i in range(4):
+    for i in range(NUM_CHANGE):
         # to_deterministic to make image and keypoints to a batch, so
         seq_det = seq.to_deterministic()
         image_aug = seq_det.augment_image(image)
@@ -257,6 +316,26 @@ def aug_by_perspective(xmlName, image_exname, image, polygons, reader):
         reader.savePascalVocXML(os.path.join(xml_save_dir, xmlName[0:-4] + '_per_' + str(id) + '.xml'))
 
 
+def aug_rotate_idcard(xmlName, image_exname, image, polygons, reader):
+    # pts = np.float32([[300, 300], [700, 300], [700, 700], [300, 700]])
+    # augImgs, augPts = tranformer.transform(image, pts)
+    cv2.waitKey()
+    augImgs = [image]
+    for i in range(3):
+        tmpimg = cv2.rotate(augImgs[i], cv2.ROTATE_90_CLOCKWISE)
+        augImgs.append(tmpimg)
+        # cv2.imshow(' ,', tmpimg)
+        # cv2.waitKey()
+
+
+    for id, img in enumerate(augImgs):
+        cv2.imwrite(os.path.join(img_save_dir, xmlName[0:-4] + '_per_' + str(id) + image_exname), img)
+
+        reader.changeRotateLabelForIdcard(os.path.join(xml_save_dir, xmlName[0:-4] + '_per_' + str(id) + '.xml'),
+                                          # str((id) * 90 % 360), image.shape[0], image.shape[1])
+                                          str((id+1) * 90 % 360), image.shape[0], image.shape[1])
+
+
 if __name__ == '__main__':
 
     for xmlname in os.listdir(xml_source_dir):
@@ -274,9 +353,13 @@ if __name__ == '__main__':
         reader = PascalVocReader(os.path.join(xml_source_dir, xmlname))
         polygons = reader.getPolygons()
 
+        # 旋转增强用cv2.imread
+        # image_nd = cv2.imread(os.path.join(img_source_dir, xmlname[0:-4] + img_exname))
         image_nd = ndimage.imread(os.path.join(img_source_dir, xmlname[0:-4] + img_exname))
+
         if image_nd.shape[0] > 0 and image_nd.shape[1] > 0:
             aug_by_ia(xmlname, img_exname, image_nd, polygons, reader)
+            # aug_rotate_idcard(xmlname, img_exname, image_nd, polygons, reader)
 
         if AUG_PERSPECTIVE == True:
             image_cv = cv2.imread(os.path.join(img_source_dir, xmlname[0:-4] + img_exname))
